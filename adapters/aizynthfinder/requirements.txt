@@ -1,0 +1,14 @@
+# AiZynthFinder Adapter Dependencies
+
+# Core dependency
+aizynthfinder>=4.0.0
+
+# Required by AiZynthFinder
+rdkit>=2023.03.1
+tensorflow>=2.12.0
+scikit-learn>=1.2.0
+numpy>=1.23.0
+
+# Optional but recommended
+# Pre-trained models and stock databases must be downloaded separately
+# See: https://molecularai.github.io/aizynthfinder/getting_started.html

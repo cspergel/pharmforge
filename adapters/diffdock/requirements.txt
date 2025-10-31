@@ -1,0 +1,39 @@
+# DiffDock Adapter Requirements
+# Installation guide for diffusion-based molecular docking
+
+# Core Dependencies
+rdkit>=2023.9.5  # Molecule handling (already in main requirements)
+
+# PyTorch (GPU-enabled version recommended)
+# For CPU-only (slower):
+# torch>=2.0.0
+# For CUDA 11.8:
+# torch>=2.0.0+cu118 --index-url https://download.pytorch.org/whl/cu118
+# For CUDA 12.1:
+# torch>=2.0.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+
+# PyTorch Geometric (required by DiffDock)
+torch-geometric>=2.3.0
+torch-scatter>=2.1.0
+torch-sparse>=0.6.16
+torch-cluster>=1.6.0
+
+# DiffDock Dependencies
+biopython>=1.79
+e3nn>=0.5.0
+spyrmsd>=0.5.2
+networkx>=2.6.3
+scipy>=1.7.3
+pyyaml>=6.0
+
+# ESM (Protein Language Model) - Facebook Research
+# Install from: pip install fair-esm
+# Or clone: git clone https://github.com/facebookresearch/esm.git
+fair-esm>=2.0.0
+
+# Optional: OpenFold for structure prediction
+# openfold (requires separate installation)
+
+# NOTE: DiffDock itself is not a pip package
+# Clone from GitHub: git clone https://github.com/gcorso/DiffDock.git
+# Then download model weights from the repository

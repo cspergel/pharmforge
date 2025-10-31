@@ -1,0 +1,19 @@
+# PharmForge Frontend Requirements
+# Streamlit MVP Dependencies
+
+# Core
+streamlit==1.28.0
+requests==2.31.0
+
+# Data Processing
+pandas==2.1.3
+numpy==1.26.2
+
+# Visualization
+plotly==5.18.0
+
+# Chemistry
+rdkit==2023.9.6
+
+# Optional: For production deployment
+gunicorn==21.2.0

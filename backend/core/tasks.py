@@ -45,7 +45,7 @@ class DatabaseTask(Task):
 @celery_app.task(bind=True, base=DatabaseTask, name="backend.core.tasks.execute_pipeline")
 def execute_pipeline(self, run_id: str) -> Dict[str, Any]:
     """
-    Execute a drug discovery pipeline asynchronously
+    Execute a drug discovery pipeline asynchronously using the Pipeline orchestrator
 
     Args:
         run_id: Unique identifier for the pipeline run
@@ -70,11 +70,6 @@ def execute_pipeline(self, run_id: str) -> Dict[str, Any]:
             logger.error(error_msg)
             return {"success": False, "error": error_msg}
 
-        # Update status to RUNNING
-        run.status = "running"
-        db.commit()
-        logger.info(f"Pipeline run {run_id} status updated to RUNNING")
-
         # Get input SMILES
         input_smiles: List[str] = run.input_smiles
         if not input_smiles:
@@ -87,125 +82,32 @@ def execute_pipeline(self, run_id: str) -> Dict[str, Any]:
 
         logger.info(f"Processing {len(input_smiles)} SMILES strings")
 
-        # Define adapter execution order
-        adapter_sequence = [
-            "rdkit_local",    # Local molecular properties
-            "admet_ai",       # ADMET predictions
-            "pubchem",        # PubChem data enrichment
-            "chembl"          # Bioactivity data
-        ]
+        # Import Pipeline orchestrator
+        from backend.core.pipeline import create_pipeline, PipelineConfig
 
-        # Verify all required adapters are registered
-        missing_adapters = []
-        for adapter_name in adapter_sequence:
-            if registry.get(adapter_name) is None:
-                missing_adapters.append(adapter_name)
+        # Create pipeline configuration from run config
+        config = PipelineConfig()
+        if run.pipeline_config:
+            # Override defaults with user config
+            if "adapter_sequence" in run.pipeline_config:
+                config.adapter_sequence = run.pipeline_config["adapter_sequence"]
+            if "ranking_method" in run.pipeline_config:
+                config.ranking_method = run.pipeline_config["ranking_method"]
+            if "ranking_weights" in run.pipeline_config:
+                config.ranking_weights = run.pipeline_config["ranking_weights"]
+            if "n_top_candidates" in run.pipeline_config:
+                config.n_top_candidates = run.pipeline_config["n_top_candidates"]
 
-        if missing_adapters:
-            error_msg = f"Required adapters not registered: {', '.join(missing_adapters)}"
-            logger.error(error_msg)
-            run.status = "failed"
-            run.error_message = error_msg
-            db.commit()
-            return {"success": False, "error": error_msg}
+        # Create pipeline
+        pipeline = create_pipeline(db=db, config=config)
 
-        # Process each compound
-        all_results = []
-        total_compounds = len(input_smiles)
+        # Execute pipeline (runs async)
+        import asyncio
+        result = asyncio.run(pipeline.execute(input_smiles, run_id))
 
-        for idx, smiles in enumerate(input_smiles):
-            logger.info(f"Processing compound {idx + 1}/{total_compounds}: {smiles}")
+        logger.info(f"Pipeline execution completed: {result}")
 
-            compound_data = {
-                "smiles": smiles,
-                "properties": None,
-                "admet": None,
-                "pubchem": None,
-                "bioactivity": None
-            }
-
-            # Execute adapters sequentially
-            for adapter_idx, adapter_name in enumerate(adapter_sequence):
-                adapter = registry.get(adapter_name)
-
-                try:
-                    logger.info(f"Running adapter: {adapter_name} for {smiles}")
-
-                    # Execute adapter (adapters are async but Celery workers handle this)
-                    import asyncio
-                    result = asyncio.run(adapter.execute(smiles))
-
-                    if result.success:
-                        # Store result in appropriate field
-                        if adapter_name == "rdkit_local":
-                            compound_data["properties"] = result.data
-                        elif adapter_name == "admet_ai":
-                            compound_data["admet"] = result.data
-                        elif adapter_name == "pubchem":
-                            compound_data["pubchem"] = result.data
-                        elif adapter_name == "chembl":
-                            compound_data["bioactivity"] = result.data
-
-                        logger.info(f"✓ Adapter {adapter_name} completed successfully")
-                    else:
-                        logger.warning(f"✗ Adapter {adapter_name} failed: {result.error}")
-                        compound_data[f"{adapter_name}_error"] = result.error
-
-                except Exception as e:
-                    error_msg = f"Exception in adapter {adapter_name}: {str(e)}"
-                    logger.error(error_msg, exc_info=True)
-                    compound_data[f"{adapter_name}_error"] = error_msg
-
-                # Update progress after each adapter
-                # Progress = (compound_index * num_adapters + adapter_index + 1) / (total_compounds * num_adapters)
-                progress = ((idx * len(adapter_sequence)) + adapter_idx + 1) / (total_compounds * len(adapter_sequence))
-                self.update_state(
-                    state="PROGRESS",
-                    meta={
-                        "current": idx + 1,
-                        "total": total_compounds,
-                        "status": f"Processing {smiles} with {adapter_name}",
-                        "progress": progress
-                    }
-                )
-                logger.info(f"Progress: {progress:.1%}")
-
-            # Create CompoundResult entry
-            compound_result = CompoundResult(
-                compound_id=f"{run_id}_{idx}",
-                run_id=run.id,
-                smiles=smiles,
-                properties=compound_data.get("properties"),
-                admet=compound_data.get("admet"),
-                bioactivity=compound_data.get("bioactivity")
-            )
-            db.add(compound_result)
-
-            all_results.append(compound_data)
-            logger.info(f"Compound {idx + 1}/{total_compounds} completed")
-
-        # Store aggregated results
-        run.results = {
-            "compounds": all_results,
-            "total_processed": len(all_results),
-            "adapter_sequence": adapter_sequence,
-            "completed_at": datetime.utcnow().isoformat()
-        }
-
-        # Update status to COMPLETED
-        run.status = "completed"
-        run.completed_at = datetime.utcnow()
-        db.commit()
-
-        logger.info(f"Pipeline run {run_id} COMPLETED successfully")
-        logger.info(f"Processed {len(all_results)} compounds")
-
-        return {
-            "success": True,
-            "run_id": run_id,
-            "total_compounds": len(all_results),
-            "status": "completed"
-        }
+        return result
 
     except Exception as e:
         error_msg = f"Pipeline execution failed: {str(e)}"

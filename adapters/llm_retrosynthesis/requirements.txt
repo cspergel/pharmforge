@@ -1,0 +1,11 @@
+# LLM Retrosynthesis Adapter Dependencies
+
+# Core dependencies (from PharmForge requirements.txt)
+rdkit>=2023.9.5,<2024.3.1
+
+# LLM API clients
+anthropic>=0.39.0
+openai>=1.50.0
+
+# Optional: for testing without full PharmForge installation
+# pydantic>=2.6.3

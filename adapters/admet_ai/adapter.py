@@ -51,7 +51,29 @@ class ADMETaiAdapter(AdapterProtocol):
         """Lazy-load ADMET-AI model on first use."""
         if self._model is None:
             try:
+                import argparse
+                import torch
+                import numpy as np
+                import numpy.core.multiarray
                 from admet_ai import ADMETModel
+
+                # Fix for PyTorch 2.6+ weights_only=True default
+                # ADMET AI models contain various Python objects that need to be allowlisted
+                # We trust these models from the official ADMET AI library
+                logger.info("Configuring PyTorch safe globals for ADMET-AI...")
+
+                # Add all required safe globals for ADMET AI model loading
+                safe_globals = [
+                    argparse.Namespace,
+                    numpy.core.multiarray._reconstruct,
+                    numpy.ndarray,
+                    numpy.dtype,
+                    numpy.dtypes.Float64DType,
+                ]
+
+                torch.serialization.add_safe_globals(safe_globals)
+                logger.info(f"Added {len(safe_globals)} safe globals for model loading")
+
                 logger.info("Loading ADMET-AI model...")
                 self._model = ADMETModel()
                 logger.info("✓ ADMET-AI model loaded successfully")

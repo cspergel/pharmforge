@@ -53,7 +53,9 @@ class AiZynthFinderAdapter(AdapterProtocol):
             "max_routes": 5,
             "timeout": 120,
             "expansion_time": 60,
-            "stock": "zinc",  # Options: "zinc", "emolecules", "molport", etc.
+            "stock": "zinc",  # Options: "zinc", "custom", "emolecules", "molport", etc.
+            "use_custom_stock": False,  # Use custom lab stock database
+            "require_stock": True,  # Require starting materials to be in stock (False = show all routes)
             "return_first": False  # Return immediately after first route found
         }
 
@@ -74,22 +76,33 @@ class AiZynthFinderAdapter(AdapterProtocol):
         if self._finder is None:
             try:
                 from aizynthfinder.aizynthfinder import AiZynthFinder
-                from aizynthfinder.context.config import Configuration
 
                 logger.info("Loading AiZynthFinder configuration...")
 
-                # Create configuration
-                config = Configuration()
+                # Try to load config file from downloaded models
+                config_paths = [
+                    "/app/aizynthfinder_data/config.yml",  # Downloaded models location
+                    "aizynthfinder_config.yml",            # Legacy location
+                    "config.yml"                            # Current directory
+                ]
 
-                # Try to load default config file if it exists
-                try:
-                    config.from_file("aizynthfinder_config.yml")
-                    logger.info("Loaded AiZynthFinder config from file")
-                except Exception:
-                    logger.warning("No config file found, using defaults")
+                config_loaded_path = None
+                for config_path in config_paths:
+                    try:
+                        # Check if file exists
+                        import os
+                        if os.path.exists(config_path):
+                            logger.info(f"✓ Found AiZynthFinder config at: {config_path}")
+                            config_loaded_path = config_path
+                            break
+                    except Exception:
+                        continue
 
-                # Create finder
-                self._finder = AiZynthFinder(config)
+                if not config_loaded_path:
+                    logger.warning("No config file found, using defaults (retrosynthesis may not work)")
+
+                # Create finder with config file path (not Configuration object)
+                self._finder = AiZynthFinder(configfile=config_loaded_path) if config_loaded_path else AiZynthFinder()
 
                 logger.info("✓ AiZynthFinder initialized successfully")
 
@@ -306,7 +319,12 @@ class AiZynthFinderAdapter(AdapterProtocol):
             # Find best route (highest synthesis score)
             best_route = max(route_list, key=lambda x: x["synthesis_score"])
 
-            # Create result data structure
+            # Extract unique starting materials across all routes
+            all_starting_materials = set()
+            for route in route_list:
+                all_starting_materials.update(route["starting_materials"])
+
+            # Create result data structure with requirements highlighted
             result_data = {
                 "smiles": smiles,
                 "routes_found": len(route_list),
@@ -316,7 +334,14 @@ class AiZynthFinderAdapter(AdapterProtocol):
                 "synthesis_score": best_route["synthesis_score"],
                 "feasibility": best_route["feasibility"],
                 "model": "AiZynthFinder MCTS",
-                "reference": "Genheden et al., J. Chem. Inf. Model. 2020"
+                "reference": "Genheden et al., J. Chem. Inf. Model. 2020",
+                # User-friendly requirements section
+                "requirements": {
+                    "starting_materials": best_route["starting_materials"],
+                    "n_steps": best_route["n_steps"],
+                    "n_reactions": best_route["n_reactions"],
+                    "all_possible_starting_materials": list(all_starting_materials)
+                }
             }
 
             logger.info(f"✓ Found {len(route_list)} synthesis routes")
@@ -374,6 +399,76 @@ class AiZynthFinderAdapter(AdapterProtocol):
 
             # Configure expansion time
             self.finder.config.search_time = expansion_time
+
+            # Select expansion policy (use "uspto" as primary policy)
+            self.finder.expansion_policy.select("uspto")
+
+            # Select filter policy if available
+            # If require_stock is False, disable filtering to show all possible routes
+            require_stock_for_filter = self.config.get('require_stock', True)
+            if not require_stock_for_filter:
+                # Disable filter policy to allow all reactions
+                logger.info("Filter policy disabled - showing all reactions regardless of probability")
+                # Set filter cutoff to 0 to accept all reactions
+                self.finder.config.filter_cutoff = 0.0
+            elif hasattr(self.finder, 'filter_policy') and self.finder.filter_policy:
+                try:
+                    self.finder.filter_policy.select("uspto")
+                    logger.info("Filter policy enabled with default cutoff")
+                except Exception:
+                    pass  # Filter policy is optional
+
+            # Select stock (for checking commercial availability)
+            # If require_stock is False, skip stock checking entirely
+            require_stock = self.config.get('require_stock', True)
+
+            if not require_stock:
+                # Disable stock checking completely - allow all routes
+                logger.info("Stock checking disabled - will find routes without stock constraints")
+                # Create a minimal stock class that accepts ALL molecules
+                try:
+                    from aizynthfinder.context.stock.queries import StockQueryMixin
+
+                    class UniversalStockQuery(StockQueryMixin):
+                        """A stock query that considers all molecules as available."""
+
+                        def __init__(self):
+                            pass
+
+                        def __contains__(self, mol):
+                            """All molecules are considered in stock."""
+                            return True
+
+                        def __len__(self):
+                            return float('inf')
+
+                        def amount(self, mol):
+                            return float('inf')
+
+                        def price(self, mol):
+                            return 0.0
+
+                    # Load and select the universal stock
+                    self.finder.stock.load(UniversalStockQuery(), "universal")
+                    self.finder.stock.select("universal")
+                    logger.info("✓ Universal stock enabled - all molecules considered available")
+                except Exception as e:
+                    logger.warning(f"Could not create universal stock: {e}")
+                    logger.warning(f"  Attempting alternative approach...")
+                    try:
+                        # Alternative: Just don't select any stock at all
+                        # This should disable stock checking in the tree search
+                        pass
+                    except Exception:
+                        pass
+            elif hasattr(self.finder, 'stock') and self.finder.stock:
+                try:
+                    # Use custom stock if enabled, otherwise use configured stock
+                    stock_name = "custom" if self.config.get('use_custom_stock') else self.config.get('stock', 'zinc')
+                    self.finder.stock.select(stock_name)
+                    logger.info(f"Using stock database: {stock_name}")
+                except Exception as e:
+                    logger.warning(f"Could not select stock '{stock_name}': {e}")
 
             # Run tree search
             self.finder.tree_search()

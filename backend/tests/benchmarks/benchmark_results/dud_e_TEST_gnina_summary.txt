@@ -1,0 +1,40 @@
+======================================================================
+DUD-E BENCHMARK RESULTS
+======================================================================
+
+Target:          TEST
+Adapter:         gnina v1.0.0
+Actives:         3
+Decoys:          5
+Successful:      8 / 8
+
+----------------------------------------------------------------------
+ENRICHMENT METRICS
+----------------------------------------------------------------------
+
+AUC-ROC:         1.0000
+AUC-PR:          1.0000
+EF 1%:           2.67x
+EF 5%:           2.67x
+EF 10%:          2.67x
+
+----------------------------------------------------------------------
+BINDING AFFINITY ANALYSIS
+----------------------------------------------------------------------
+
+Mean Active:     -8.40 kcal/mol
+Mean Decoy:      -5.11 kcal/mol
+Separation:      -1.91 σ
+
+======================================================================
+INTERPRETATION
+======================================================================
+
+AUC-ROC:  Random = 0.5, Perfect = 1.0
+          >0.7 = Good, >0.8 = Excellent, >0.9 = Outstanding
+
+EF:       Enrichment factor compared to random selection
+          >1.0 = Better than random
+          >5.0 = Good enrichment
+          >10.0 = Excellent enrichment
+

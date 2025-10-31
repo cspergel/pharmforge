@@ -32,12 +32,14 @@ app.add_middleware(
 )
 
 # Import routers
-from .api import health, adapters, runs
+from .api import health, runs, stock_routes
+from .api.adapters import router as adapters_router
 
 # Include routers
 app.include_router(health.router, tags=["health"])
-app.include_router(adapters.router, prefix="/api/v1", tags=["adapters"])
+app.include_router(adapters_router, prefix="/api/adapters", tags=["adapters"])
 app.include_router(runs.router, prefix="/api/v1", tags=["runs"])
+app.include_router(stock_routes.router, tags=["stock"])
 
 @app.on_event("startup")
 async def startup_event():

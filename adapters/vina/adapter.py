@@ -12,6 +12,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, List, Tuple, TYPE_CHECKING
 import shutil
+import urllib.request
+import subprocess
 
 if TYPE_CHECKING:
     from rdkit import Chem
@@ -191,8 +193,7 @@ class VinaAdapter(AdapterProtocol):
         """
         Convert PDB to PDBQT format (required by Vina)
 
-        Uses simple charge assignment since we don't have Open Babel/MGLTools.
-        In production, you'd use: obabel or prepare_ligand4.py
+        Uses OpenBabel for proper PDBQT conversion with correct atom types.
 
         Args:
             pdb_path: Input PDB file path
@@ -202,33 +203,34 @@ class VinaAdapter(AdapterProtocol):
             True if successful, False otherwise
         """
         try:
-            # Simple PDBQT generation (assigns Gasteiger charges via RDKit)
-            mol = Chem.MolFromPDBFile(pdb_path, removeHs=False)
-            if mol is None:
-                logger.error("Could not read PDB file")
+            # Use OpenBabel to convert PDB to PDBQT
+            # This handles atom types, charges, and format correctly
+            import subprocess
+
+            result = subprocess.run(
+                ['obabel', pdb_path, '-O', pdbqt_path, '-xh'],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if result.returncode != 0:
+                logger.error(f"OpenBabel conversion failed: {result.stderr}")
                 return False
 
-            # Compute Gasteiger charges
-            AllChem.ComputeGasteigerCharges(mol)
-
-            # Write PDBQT (simplified format)
-            with open(pdbqt_path, 'w') as f:
-                conf = mol.GetConformer()
-                for atom in mol.GetAtoms():
-                    idx = atom.GetIdx()
-                    pos = conf.GetAtomPosition(idx)
-                    charge = atom.GetDoubleProp('_GasteigerCharge')
-
-                    # Simple PDBQT ATOM line
-                    atom_type = atom.GetSymbol()
-                    f.write(f"ATOM  {idx+1:5d}  {atom_type:<3s} LIG     1    "
-                           f"{pos.x:8.3f}{pos.y:8.3f}{pos.z:8.3f}"
-                           f"  1.00  0.00    {charge:6.3f} {atom_type}\n")
-
-                f.write("ENDMDL\n")
+            # Verify file was created
+            if not os.path.exists(pdbqt_path) or os.path.getsize(pdbqt_path) == 0:
+                logger.error("PDBQT file was not created or is empty")
+                return False
 
             return True
 
+        except subprocess.TimeoutExpired:
+            logger.error("OpenBabel conversion timed out")
+            return False
+        except FileNotFoundError:
+            logger.error("OpenBabel (obabel) not found. Install with: apt-get install openbabel")
+            return False
         except Exception as e:
             logger.error(f"Error preparing PDBQT: {e}")
             return False
@@ -250,16 +252,15 @@ class VinaAdapter(AdapterProtocol):
             log: Path for log file
 
         Returns:
-            (success, error_message) tuple
+            (success, error_message, stdout_output) tuple
         """
         try:
-            # Build Vina command
+            # Build Vina command (Note: Vina 1.2+ doesn't have --log, outputs to stdout)
             cmd = [
                 self.vina_binary,
                 "--receptor", receptor,
                 "--ligand", ligand,
                 "--out", output,
-                "--log", log,
                 "--center_x", str(self.center_x),
                 "--center_y", str(self.center_y),
                 "--center_z", str(self.center_z),
@@ -284,6 +285,11 @@ class VinaAdapter(AdapterProtocol):
                 error = stderr.decode() if stderr else "Unknown error"
                 logger.error(f"Vina failed: {error}")
                 return False, error
+
+            # Vina 1.2+ outputs to stdout, so save it to log file
+            stdout_text = stdout.decode() if stdout else ""
+            with open(log, 'w') as f:
+                f.write(stdout_text)
 
             return True, ""
 
@@ -340,6 +346,212 @@ class VinaAdapter(AdapterProtocol):
 
         return results
 
+    def _fetch_pdb_structure(self, pdb_id: str, output_path: str) -> bool:
+        """
+        Fetch PDB structure from RCSB PDB database
+
+        Args:
+            pdb_id: 4-character PDB ID (e.g., "1HSG")
+            output_path: Path to save PDB file
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            pdb_id = pdb_id.upper().strip()
+            url = f"https://files.rcsb.org/download/{pdb_id}.pdb"
+
+            logger.info(f"Fetching PDB structure {pdb_id} from RCSB...")
+            urllib.request.urlretrieve(url, output_path)
+
+            if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
+                logger.error(f"Failed to fetch PDB {pdb_id}")
+                return False
+
+            logger.info(f"✓ Downloaded PDB structure: {pdb_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error fetching PDB {pdb_id}: {e}")
+            return False
+
+    def _fetch_alphafold_structure(self, uniprot_id: str, output_path: str) -> bool:
+        """
+        Fetch AlphaFold predicted structure from AlphaFold DB
+
+        Args:
+            uniprot_id: UniProt ID (e.g., "P04637")
+            output_path: Path to save PDB file
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            uniprot_id = uniprot_id.upper().strip()
+
+            # Try different AlphaFold DB versions (v4, v3, v2)
+            versions = ['v4', 'v3', 'v2']
+
+            for version in versions:
+                url = f"https://alphafold.ebi.ac.uk/files/AF-{uniprot_id}-F1-model_{version}.pdb"
+
+                try:
+                    logger.info(f"Trying AlphaFold structure {uniprot_id} ({version})...")
+                    urllib.request.urlretrieve(url, output_path)
+
+                    if os.path.exists(output_path) and os.path.getsize(output_path) > 0:
+                        logger.info(f"✓ Downloaded AlphaFold structure: {uniprot_id} ({version})")
+                        return True
+
+                except urllib.error.HTTPError as e:
+                    logger.debug(f"AlphaFold {version} not available: {e.code}")
+                    continue
+
+            logger.error(f"AlphaFold structure not found for {uniprot_id} (tried v2, v3, v4)")
+            return False
+
+        except Exception as e:
+            logger.error(f"Error fetching AlphaFold structure for {uniprot_id}: {e}")
+            return False
+
+    def _pdb_to_pdbqt(self, pdb_path: str, pdbqt_path: str) -> bool:
+        """
+        Convert PDB receptor to PDBQT format using OpenBabel
+
+        Args:
+            pdb_path: Input PDB file path
+            pdbqt_path: Output PDBQT file path
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            result = subprocess.run(
+                ['obabel', pdb_path, '-O', pdbqt_path, '-xr'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+
+            if result.returncode != 0:
+                logger.error(f"PDB to PDBQT conversion failed: {result.stderr}")
+                return False
+
+            if not os.path.exists(pdbqt_path) or os.path.getsize(pdbqt_path) == 0:
+                logger.error("PDBQT file was not created or is empty")
+                return False
+
+            logger.info("✓ Converted receptor to PDBQT format")
+            return True
+
+        except subprocess.TimeoutExpired:
+            logger.error("PDB to PDBQT conversion timed out")
+            return False
+        except FileNotFoundError:
+            logger.error("OpenBabel (obabel) not found")
+            return False
+        except Exception as e:
+            logger.error(f"Error converting PDB to PDBQT: {e}")
+            return False
+
+    def _calculate_protein_center(self, pdb_path: str) -> Optional[Tuple[float, float, float]]:
+        """
+        Calculate geometric center of protein from PDB file
+
+        Args:
+            pdb_path: Path to PDB file
+
+        Returns:
+            (x, y, z) coordinates of protein center, or None on failure
+        """
+        try:
+            x_coords, y_coords, z_coords = [], [], []
+
+            with open(pdb_path, 'r') as f:
+                for line in f:
+                    if line.startswith('ATOM') or line.startswith('HETATM'):
+                        try:
+                            x = float(line[30:38].strip())
+                            y = float(line[38:46].strip())
+                            z = float(line[46:54].strip())
+                            x_coords.append(x)
+                            y_coords.append(y)
+                            z_coords.append(z)
+                        except (ValueError, IndexError):
+                            continue
+
+            if not x_coords:
+                logger.error("No atom coordinates found in PDB file")
+                return None
+
+            center_x = sum(x_coords) / len(x_coords)
+            center_y = sum(y_coords) / len(y_coords)
+            center_z = sum(z_coords) / len(z_coords)
+
+            logger.info(f"✓ Calculated protein center: ({center_x:.2f}, {center_y:.2f}, {center_z:.2f})")
+            return (center_x, center_y, center_z)
+
+        except Exception as e:
+            logger.error(f"Error calculating protein center: {e}")
+            return None
+
+    def _process_protein_data(self, protein_data: Dict, temp_dir: str) -> Tuple[Optional[str], Optional[Tuple[float, float, float]]]:
+        """
+        Process protein_data dictionary to get receptor PDBQT and binding site center
+
+        Args:
+            protein_data: Dictionary with 'type' and 'value' keys
+            temp_dir: Temporary directory for file processing
+
+        Returns:
+            (receptor_pdbqt_path, (center_x, center_y, center_z)) or (None, None) on failure
+        """
+        try:
+            protein_type = protein_data.get('type')
+            protein_value = protein_data.get('value')
+
+            if not protein_type or not protein_value:
+                logger.error("Invalid protein_data: missing 'type' or 'value'")
+                return None, None
+
+            pdb_path = os.path.join(temp_dir, "receptor.pdb")
+
+            # Fetch protein structure based on type
+            if protein_type == 'pdb_id':
+                if not self._fetch_pdb_structure(protein_value, pdb_path):
+                    return None, None
+
+            elif protein_type == 'uniprot_id':
+                if not self._fetch_alphafold_structure(protein_value, pdb_path):
+                    return None, None
+
+            elif protein_type == 'pdb_file':
+                # protein_value would contain the PDB file content
+                with open(pdb_path, 'w') as f:
+                    f.write(protein_value)
+                logger.info("✓ Saved uploaded PDB file")
+
+            else:
+                logger.error(f"Unknown protein_data type: {protein_type}")
+                return None, None
+
+            # Calculate binding site center (geometric center of protein)
+            center = self._calculate_protein_center(pdb_path)
+            if not center:
+                logger.warning("Could not calculate protein center, using default (0,0,0)")
+                center = (0.0, 0.0, 0.0)
+
+            # Convert PDB to PDBQT
+            pdbqt_path = os.path.join(temp_dir, "receptor.pdbqt")
+            if not self._pdb_to_pdbqt(pdb_path, pdbqt_path):
+                return None, None
+
+            return pdbqt_path, center
+
+        except Exception as e:
+            logger.error(f"Error processing protein_data: {e}")
+            return None, None
+
     async def execute(self, input_data: Any, **kwargs) -> AdapterResult:
         """
         Execute Vina molecular docking
@@ -372,24 +584,52 @@ class VinaAdapter(AdapterProtocol):
 
         smiles = input_data
 
-        # Override config with kwargs
-        receptor_path = kwargs.get('receptor_path', self.receptor_path)
-        if not receptor_path:
-            return AdapterResult(
-                success=False,
-                data=None,
-                error="No receptor_path provided. Configure in adapter or pass as parameter."
-            )
-
-        if not os.path.exists(receptor_path):
-            return AdapterResult(
-                success=False,
-                data=None,
-                error=f"Receptor file not found: {receptor_path}"
-            )
-
         # Create temporary directory for docking files
         temp_dir = tempfile.mkdtemp(prefix="vina_")
+
+        # Handle protein_data if provided
+        protein_data = kwargs.get('protein_data')
+        receptor_path = None
+        center_coords = None
+
+        if protein_data:
+            logger.info(f"Processing protein_data: {protein_data.get('type')} = {protein_data.get('value')}")
+            receptor_path, center_coords = self._process_protein_data(protein_data, temp_dir)
+
+            if not receptor_path or not center_coords:
+                return AdapterResult(
+                    success=False,
+                    data=None,
+                    error="Failed to process protein_data"
+                )
+
+            # Use calculated center
+            self.center_x, self.center_y, self.center_z = center_coords
+
+        else:
+            # Fallback to configured receptor_path
+            receptor_path = kwargs.get('receptor_path', self.receptor_path)
+            if not receptor_path:
+                return AdapterResult(
+                    success=False,
+                    data=None,
+                    error="No receptor_path or protein_data provided. Configure in adapter or pass as parameter."
+                )
+
+            if not os.path.exists(receptor_path):
+                return AdapterResult(
+                    success=False,
+                    data=None,
+                    error=f"Receptor file not found: {receptor_path}"
+                )
+
+            # Validate docking box center is configured
+            if any(x is None for x in [self.center_x, self.center_y, self.center_z]):
+                return AdapterResult(
+                    success=False,
+                    data=None,
+                    error="Docking box center not configured and no protein_data provided"
+                )
 
         try:
             # Step 1: Generate 3D structure

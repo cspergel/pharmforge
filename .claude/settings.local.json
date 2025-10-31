@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(exec python3:*)",
+      "Bash(curl:*)",
+      "Bash(find:*)",
+      "Bash(xargs -I {} sh -c 'echo \"\"\"\"=== {} ===\"\"\"\" && wc -l \"\"\"\"{}\"\"\"\"')",
+      "Bash(del:*)",
+      "Bash(docker-compose restart:*)",
+      "Bash(docker-compose down:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker logs:*)",
+      "Bash(docker-compose stop:*)",
+      "Bash(docker-compose start:*)",
+      "Bash(python:*)",
+      "Bash(findstr:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(dir:*)",
+      "Bash(nul)",
+      "Bash(timeout /t 5)",
+      "Bash(git add:*)",
+      "Bash(if exist NUL del NUL)",
+      "Bash(git commit:*)",
+      "Bash(.gitignore)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "playwright"
+  ]
+}

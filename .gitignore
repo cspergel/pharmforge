@@ -58,3 +58,29 @@ lockfiles/
 *.tmp
 *.bak
 *.backup
+
+# Test files (random test scripts created during development)
+test_*.py
+*_test.py
+temp_*.py
+scratch_*.py
+
+# ML Models and Data
+aizynthfinder_data/
+reinvent_models/
+molgan_models/
+denovo_models/
+diffdock_models/
+*.onnx
+*.hdf5
+*.pkl
+*.pth
+*.pt
+*.h5
+*.ckpt
+
+# Adapter test data
+backend/tests/test_data/
+backend/tests/temp/
+backend/tests/output/
+NUL

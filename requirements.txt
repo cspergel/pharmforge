@@ -18,7 +18,57 @@ httpx==0.25.2
 # Chemistry Libraries
 rdkit>=2023.9.5,<2024.3.1
 PyTDC>=1.0.0
-admet-ai>=1.4.0
+admet-ai  # Relaxed version constraint for compatibility with chemprop/deepchem
+aizynthfinder>=4.3.2
+route-distances>=0.2.0
+
+# New Adapter Dependencies Round 1 (from awesome-drug-discovery)
+mordred>=1.2.0
+molvs>=0.1.1
+scikit-mol>=0.1.1
+MDAnalysis>=2.7.0
+openbabel-wheel>=3.1.1
+meeko>=0.5.0
+# deepchem and chemprop may have dependency conflicts with admet-ai, install separately if needed
+deepchem>=2.7.1
+chemprop>=1.7.1
+
+# New Adapter Dependencies Round 2 (GNN, Featurization, Visualization, Optimization)
+torchdrug>=0.2.0
+dgllife>=0.3.2
+molfeat>=0.9.0
+chemplot>=1.2.0
+optuna>=3.0.0
+
+# New Adapter Dependencies Round 3 (Interaction Analysis, Modern Toolkit, 3D Viz)
+prolif>=2.0.0
+datamol>=0.12.0
+py3Dmol>=2.0.0
+
+# New Adapter Dependencies Round 4 (AutoML & Feature Engineering)
+chemml>=1.0.0
+tpot>=0.12.0
+
+# New Adapter Dependencies Round 5 (Batch 5-7: Natural Products, Toxicity, Biologics)
+# COCONUT - Natural products database (API only, no package)
+# HMDB - Human Metabolome Database (API only, no package)
+# Tox21 - Toxicity dataset (uses existing scikit-learn)
+# CompTox - EPA Chemistry Dashboard (API only, no package)
+# SAbDab - Antibody structures database (API only, no package)
+immunebuilder>=0.1.0  # Antibody structure prediction
+biopython>=1.81  # Biological sequence analysis (for ImmuneBuilder)
+
+# New Adapter Dependencies Round 6 (Batch 8: RNA, Reactions, Interactions, QM)
+# RNAcentral - RNA database (API only, no package)
+# IntAct - Protein-protein interactions (API only, no package)
+ord-schema>=0.3.0  # Open Reaction Database schema and tools
+# xTB - Semiempirical QM (conda only: conda install -c conda-forge xtb-python)
+
+# Molecular Dynamics & Docking
+openmm>=8.1.0
+# pdbfixer>=1.9  # Only available via conda: conda install -c conda-forge pdbfixer
+vina>=1.2.5  # AutoDock Vina Python bindings
+# torch-geometric and dependencies for DiffDock (installed separately via Dockerfile)
 
 # ML & Data Science
 numpy>=1.26.4,<2.0

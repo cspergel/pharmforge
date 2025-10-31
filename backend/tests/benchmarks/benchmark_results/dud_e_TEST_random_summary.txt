@@ -1,0 +1,40 @@
+======================================================================
+DUD-E BENCHMARK RESULTS
+======================================================================
+
+Target:          TEST
+Adapter:         random v1.0.0
+Actives:         3
+Decoys:          5
+Successful:      8 / 8
+
+----------------------------------------------------------------------
+ENRICHMENT METRICS
+----------------------------------------------------------------------
+
+AUC-ROC:         0.4000
+AUC-PR:          0.3000
+EF 1%:           0.00x
+EF 5%:           0.00x
+EF 10%:          0.00x
+
+----------------------------------------------------------------------
+BINDING AFFINITY ANALYSIS
+----------------------------------------------------------------------
+
+Mean Active:     -5.28 kcal/mol
+Mean Decoy:      -5.63 kcal/mol
+Separation:      0.41 σ
+
+======================================================================
+INTERPRETATION
+======================================================================
+
+AUC-ROC:  Random = 0.5, Perfect = 1.0
+          >0.7 = Good, >0.8 = Excellent, >0.9 = Outstanding
+
+EF:       Enrichment factor compared to random selection
+          >1.0 = Better than random
+          >5.0 = Good enrichment
+          >10.0 = Excellent enrichment
+

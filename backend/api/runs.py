@@ -231,6 +231,153 @@ def list_runs(
     )
 
 
+@router.post("/runs/{run_id}/execute", response_model=RunResponse)
+async def execute_run(
+    run_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Execute a pipeline run (synchronously for now, will be async with BackgroundTasks)
+
+    Args:
+        run_id: Unique run identifier
+        db: Database session
+
+    Returns:
+        RunResponse with execution status
+
+    Raises:
+        HTTPException: 404 if run not found, 400 if already running/completed
+    """
+    logger.info(f"Executing pipeline run: {run_id}")
+
+    # Query database
+    pipeline_run = db.query(PipelineRun).filter(PipelineRun.run_id == run_id).first()
+
+    if not pipeline_run:
+        logger.warning(f"Run not found: {run_id}")
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+    # Check if already running or completed
+    if pipeline_run.status in ["running", "completed"]:
+        logger.warning(f"Run {run_id} is already {pipeline_run.status}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run is already {pipeline_run.status}"
+        )
+
+    # Import here to avoid circular dependency
+    from backend.core.pipeline import create_pipeline, PipelineConfig
+
+    # Create pipeline configuration
+    config = PipelineConfig()
+    if pipeline_run.pipeline_config:
+        # Override defaults with user config
+        if "adapter_sequence" in pipeline_run.pipeline_config:
+            config.adapter_sequence = pipeline_run.pipeline_config["adapter_sequence"]
+        if "ranking_method" in pipeline_run.pipeline_config:
+            config.ranking_method = pipeline_run.pipeline_config["ranking_method"]
+
+    # Create pipeline
+    pipeline = create_pipeline(db=db, config=config)
+
+    # Execute pipeline (this will be moved to background task in production)
+    try:
+        import asyncio
+        result = await pipeline.execute(pipeline_run.input_smiles, run_id)
+        logger.info(f"Pipeline execution completed: {result}")
+    except Exception as e:
+        logger.error(f"Pipeline execution failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Pipeline execution failed: {str(e)}")
+
+    # Refresh from database to get updated data
+    db.refresh(pipeline_run)
+
+    return RunResponse(
+        run_id=pipeline_run.run_id,
+        status=pipeline_run.status,
+        created_at=pipeline_run.created_at,
+        updated_at=pipeline_run.updated_at,
+        completed_at=pipeline_run.completed_at,
+        input_smiles=pipeline_run.input_smiles,
+        pipeline_config=pipeline_run.pipeline_config,
+        results=pipeline_run.results,
+        error_message=pipeline_run.error_message,
+        user_id=pipeline_run.user_id
+    )
+
+
+@router.get("/runs/{run_id}/results")
+def get_run_results(
+    run_id: str,
+    top_n: int = Query(10, ge=1, le=100, description="Number of top results to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get ranked results for a specific pipeline run
+
+    Args:
+        run_id: Unique run identifier
+        top_n: Number of top-ranked compounds to return (default: 10)
+        db: Database session
+
+    Returns:
+        Dictionary with ranked compounds and metadata
+
+    Raises:
+        HTTPException: 404 if run not found, 400 if not completed
+    """
+    logger.info(f"Retrieving results for run: {run_id}")
+
+    # Query database
+    pipeline_run = db.query(PipelineRun).filter(PipelineRun.run_id == run_id).first()
+
+    if not pipeline_run:
+        logger.warning(f"Run not found: {run_id}")
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+    # Check if completed
+    if pipeline_run.status != "completed":
+        logger.warning(f"Run {run_id} is not completed (status: {pipeline_run.status})")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Run is not completed (current status: {pipeline_run.status})"
+        )
+
+    # Get results
+    results = pipeline_run.results or {}
+    compounds = results.get("compounds", [])
+
+    # Get top N compounds
+    top_compounds = compounds[:top_n]
+
+    # Get compound details from database
+    compound_results = db.query(CompoundResult).filter(
+        CompoundResult.run_id == pipeline_run.id
+    ).order_by(CompoundResult.rank).limit(top_n).all()
+
+    detailed_results = []
+    for comp_result in compound_results:
+        detailed_results.append({
+            "rank": comp_result.rank,
+            "smiles": comp_result.smiles,
+            "scores": comp_result.scores,
+            "final_score": comp_result.final_score,
+            "properties": comp_result.properties,
+            "admet": comp_result.admet,
+            "bioactivity": comp_result.bioactivity
+        })
+
+    return {
+        "run_id": run_id,
+        "status": pipeline_run.status,
+        "total_compounds": results.get("total_processed", 0),
+        "ranking_method": results.get("ranking_method", "pareto"),
+        "top_compounds": detailed_results,
+        "completed_at": pipeline_run.completed_at.isoformat() if pipeline_run.completed_at else None
+    }
+
+
 @router.delete("/runs/{run_id}", status_code=204)
 def delete_run(
     run_id: str,

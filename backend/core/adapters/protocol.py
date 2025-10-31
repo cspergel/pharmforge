@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import logging
+from backend.core.cache import get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -116,12 +117,50 @@ class AdapterProtocol(ABC):
             "config": self.config
         }
 
-    async def __call__(self, input_data: Any, **kwargs) -> AdapterResult:
+    async def __call__(self, input_data: Any, use_cache: bool = True, **kwargs) -> AdapterResult:
         """
-        Make the adapter callable
+        Make the adapter callable with caching support
         Allows usage like: result = await adapter(smiles)
+
+        Args:
+            input_data: Primary input data
+            use_cache: Whether to use cache (default: True)
+            **kwargs: Additional adapter-specific parameters
+
+        Returns:
+            AdapterResult with cache_hit flag set appropriately
         """
-        return await self.execute(input_data, **kwargs)
+        cache = get_cache()
+
+        # Generate cache key
+        cache_key = self.generate_cache_key(input_data, **kwargs)
+
+        # Try to get from cache if enabled
+        if use_cache and cache.enabled:
+            cached_data = cache.get(cache_key)
+            if cached_data is not None:
+                logger.debug(f"Cache hit for {self.name}: {cache_key[:16]}...")
+                return AdapterResult(
+                    success=True,
+                    data=cached_data,
+                    cache_hit=True,
+                    metadata={"cache_key": cache_key}
+                )
+
+        # Execute adapter logic
+        result = await self.execute(input_data, **kwargs)
+
+        # Cache successful results
+        if use_cache and result.success and cache.enabled:
+            cache.set(cache_key, result.data)
+            logger.debug(f"Cached result for {self.name}: {cache_key[:16]}...")
+
+        # Add cache metadata
+        if result.metadata is None:
+            result.metadata = {}
+        result.metadata["cache_key"] = cache_key
+
+        return result
 
 
 class AdapterRegistry:

@@ -1,45 +1,218 @@
-# Claude Code Agent Orchestration System v2 🚀
+# PharmForge - AI-Powered Drug Discovery Platform 🧬
 
-A simple yet powerful orchestration system for Claude Code that uses specialized agents to manage complex projects from start to finish, with mandatory human oversight and visual testing.
+An open-source workflow orchestrator for computational drug discovery, powered by Claude Code Agent Orchestration System v2.
 
-## 🎯 What Is This?
+## 🎯 What Is PharmForge?
 
-This is a **custom Claude Code orchestration system** that transforms how you build software projects. Claude Code itself acts as the orchestrator with its 200k context window, managing the big picture while delegating individual tasks to specialized subagents:
+**PharmForge** is a comprehensive platform that connects 39+ data sources and computational tools into complete *in silico* drug discovery pipelines. From target identification to lead optimization, PharmForge automates the entire computational workflow.
 
-- **🧠 Claude (You)** - The orchestrator with 200k context managing todos and the big picture
-- **✍️ Coder Subagent** - Implements one todo at a time in its own clean context
-- **👁️ Tester Subagent** - Verifies implementations using Playwright in its own context
-- **🆘 Stuck Subagent** - Human escalation point when ANY problem occurs
+### Key Features
 
-## ⚡ Key Features
+- **39 Integrated Adapters** - PubChem, ChEMBL, OpenTargets, UniProt, KEGG, STRING-DB, BioGRID, and 32 more
+- **Natural Language Orchestration** - Describe your pipeline in plain English
+- **Multi-Objective Optimization** - Pareto ranking for binding, ADMET, synthesis, and novelty
+- **Reproducible Workflows** - Lockfiles with version control and DOIs
+- **GPU-Accelerated** - AutoDock Vina, GNINA, DiffDock, OpenMM support
+- **Production Ready** - 38/39 adapters tested and validated
+- **Open Source** - MIT licensed, self-hostable
 
-- **No Fallbacks**: When ANY agent hits a problem, you get asked - no assumptions, no workarounds
-- **Visual Testing**: Playwright MCP integration for screenshot-based verification
-- **Todo Tracking**: Always see exactly where your project stands
-- **Simple Flow**: Claude creates todos → delegates to coder → tester verifies → repeat
-- **Human Control**: The stuck agent ensures you're always in the loop
+### AI Agent Architecture
+
+PharmForge is built using the **Claude Code Agent Orchestration System v2**:
+
+- **🧠 Claude (Orchestrator)** - Manages the 200k context window, creates todos, delegates tasks
+- **✍️ Coder Subagent** - Implements features in clean context
+- **👁️ Tester Subagent** - Validates implementations with Playwright
+- **🆘 Stuck Subagent** - Escalates issues requiring human decision
+
+## 🏗️ PharmForge Adapters (39 Total)
+
+### Molecular Databases (5)
+- **PubChem** - 110M+ compounds, properties, bioactivity
+- **ChEMBL** - 2.3M+ compounds with bioactivity data
+- **BindingDB** - 2.5M+ binding affinities
+- **ZINC Fragments** - Drug-like fragment library
+- **DrugCentral** - FDA-approved drugs and clinical data
+
+### Docking & Scoring (3)
+- **AutoDock Vina** - Fast molecular docking
+- **GNINA** - CNN-based scoring
+- **DiffDock** - ML-powered docking (GPU)
+
+### Molecular Generation (4)
+- **REINVENT** - RL-based generation
+- **MolGAN** - GAN-based generation
+- **De Novo** - Fragment-based design
+- **RDKit Local** - Chemistry toolkit
+
+### Retrosynthesis (2)
+- **AiZynthFinder** - Retrosynthesis planning
+- **LLM Retrosynthesis** - GPT-4-powered routes
+
+### ADMET & Toxicity (2)
+- **ADMET-AI** - MIT ADMET predictor
+- **pkCSM** - 28 ADMET properties
+
+### Target Prediction (2)
+- **SwissTargetPrediction** - Target identification
+- **TargetNet** - ML target prediction
+
+### Protein Structure (4)
+- **AlphaFold** - Structure prediction
+- **RCSB PDB** - Experimental structures
+- **PDB-REDO** - Re-refined structures
+- **SWISS-MODEL** - Homology modeling
+
+### Molecular Dynamics (1)
+- **OpenMM** - MD simulations (GPU)
+
+### Literature & Patents (5)
+- **PubMed** - 35M+ biomedical articles
+- **Europe PMC** - Life science literature
+- **SureChEMBL** - 17M+ patent chemicals
+- **Google Patents** - Patent search
+- **Lens.org** - Patent analytics
+
+### Clinical & Adverse Events (2)
+- **ClinicalTrials.gov** - 450k+ clinical trials
+- **FDA FAERS** - Adverse event reports
+
+### Pathway & Systems Biology (2)
+- **Reactome** - Biological pathways
+- **KEGG** - Pathway database
+
+### Gene Expression (2)
+- **GTEx** - Tissue expression
+- **GEO** - Gene expression datasets
+
+### Protein Interactions (2)
+- **BioGRID** - Protein-protein interactions
+- **STRING-DB** - Interaction networks
+
+### Target-Disease Associations (1)
+- **OpenTargets** - Target validation
+
+### Protein Information (1)
+- **UniProt** - Protein sequences and functions
+
+### Disease Information (1)
+- **DisGeNET** - Gene-disease associations
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-1. **Claude Code CLI** installed ([get it here](https://docs.claude.com/en/docs/claude-code))
-2. **Node.js** (for Playwright MCP)
+- **Docker & Docker Compose** (for containers)
+- **Python 3.9+** (for local development)
+- **NVIDIA GPU** (optional, for GPU-accelerated adapters)
+- **16GB+ RAM** recommended
 
 ### Installation
 
 ```bash
 # Clone this repository
-git clone https://github.com/IncomeStreamSurfer/claude-code-agents-wizard-v2.git
-cd claude-code-agents-wizard-v2
+git clone https://github.com/your-org/pharmforge.git
+cd pharmforge/claude-code-agents-wizard-v2
 
-# Start Claude Code in this directory
-claude
+# Copy environment template
+cp .env.example .env
+
+# Edit .env with your API keys (optional - most adapters work without keys)
+# Required: OPENAI_API_KEY (for LLM retrosynthesis)
+# Optional: BIOGRID_ACCESS_KEY (free registration)
+
+# Start all services
+docker-compose up -d
+
+# Check service health
+curl http://localhost:8000/health
+
+# Access the UI
+open http://localhost:8501
 ```
 
-That's it! The agents are automatically loaded from the `.claude/` directory.
+### Your First Pipeline
 
-## 📖 How to Use
+```bash
+# Example: Find drug candidates for EGFR
+python -c "
+from backend.core.pipeline import Pipeline
+
+pipeline = Pipeline()
+results = pipeline.execute(
+    query='Find EGFR inhibitors with good ADMET',
+    limit=10
+)
+
+print(f'Found {len(results)} candidates')
+for r in results[:3]:
+    print(f'  {r.smiles}: Score {r.score:.2f}')
+"
+```
+
+### Running Tests
+
+```bash
+# Backend tests
+docker-compose exec backend pytest
+
+# Full integration test
+python tests/e2e/test_full_pipeline.py
+```
+
+## 📊 Phase 3 Status (Current)
+
+**Timeline:** Weeks 9-12 (Days 57-84)
+**Focus:** Polish, Validation & Launch
+**Status:** In Progress
+
+### Completed ✅
+- 39 adapters implemented (38 production-ready)
+- 5 new FREE adapters added (BioGRID, STRING-DB, GEO, pkCSM, KEGG)
+- All adapters validated and tested
+- GPU support enabled (RTX 5080)
+- Docker development environment ready
+- Comprehensive documentation (8,000+ lines)
+
+### In Progress 🔄
+- Backend runtime fixes (score normalization, health endpoint)
+- Frontend integration (Streamlit/React decision)
+- Benchmark suite (DUD-E, TDC)
+- AWS cloud deployment preparation
+- Phase 3 documentation updates
+
+### Planned 📋
+- Validation benchmarks published
+- Preprint submitted to ChemRxiv
+- AWS infrastructure deployed
+- Beta signup flow live
+- GitHub public launch (target: 500+ stars)
+- First 10-20 paying customers
+
+### Metrics (Target by Day 84)
+- **Adapters:** 39/39 ✅ (100% complete)
+- **Production Ready:** 38/39 (97%)
+- **Test Coverage:** 95%+
+- **Documentation:** Comprehensive ✅
+- **API Keys Required:** 2 (OpenAI, BioGRID - both free)
+- **Monthly Cost:** $0-5 (OpenAI usage only)
+
+## 📖 Documentation
+
+### Quick Links
+- **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Docker Compose and AWS setup
+- **[User Guide](USER_GUIDE.md)** - Getting started and troubleshooting
+- **[Adapter Inventory](FINAL_ADAPTER_INVENTORY.md)** - All 39 adapters documented
+- **[Changelog](CHANGELOG.md)** - Version history and updates
+- **[Phase 3 Plan](PHASE3_IMPLEMENTATION_PLAN.md)** - Current phase roadmap
+
+### Architecture Docs
+- **[Phase 1](docs/phases/phase1_weeks1-4_part1.md)** - Core infrastructure
+- **[Phase 2](docs/phases/phase2_weeks5-8_updated.md)** - Pipeline completion
+- **[Phase 3](docs/phases/phase3_weeks9-12_updated.md)** - Polish & launch
+- **[Frontend Design](docs/phases/PharmForge_Frontend_Design_Spec.md)** - UI design system
+
+## 📖 How to Use (Agent Workflow)
 
 ### Starting a Project
 

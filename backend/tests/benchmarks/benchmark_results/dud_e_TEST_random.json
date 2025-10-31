@@ -1,0 +1,93 @@
+{
+  "benchmark": "DUD-E",
+  "target": "TEST",
+  "adapter": "random",
+  "adapter_version": "1.0.0",
+  "metrics": {
+    "auc_roc": 0.4,
+    "auc_pr": 0.30000000000000004,
+    "enrichment_factor_1": 0.0,
+    "enrichment_factor_5": 0.0,
+    "enrichment_factor_10": 0.0,
+    "num_actives": 3,
+    "num_decoys": 5,
+    "num_successful": 8,
+    "mean_active_affinity": -5.276764135956926,
+    "mean_decoy_affinity": -5.631511065754962,
+    "separation_index": 0.4126869889349796
+  },
+  "results": [
+    {
+      "smiles": "CC(=O)Oc1ccccc1C(=O)O",
+      "is_active": true,
+      "binding_affinity": -4.952799061108338,
+      "binding_score": 0.8412001564819437,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+      "is_active": true,
+      "binding_affinity": -5.390553191132707,
+      "binding_score": 0.7682411348112156,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+      "is_active": true,
+      "binding_affinity": -5.486940155629734,
+      "binding_score": 0.7521766407283778,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CCO",
+      "is_active": false,
+      "binding_affinity": -4.1804900668282645,
+      "binding_score": 0.9699183221952893,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "c1ccccc1",
+      "is_active": false,
+      "binding_affinity": -6.916870272256158,
+      "binding_score": 0.5138549546239736,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CC(C)O",
+      "is_active": false,
+      "binding_affinity": -6.228565419372278,
+      "binding_score": 0.6285724301046204,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CCCCCC",
+      "is_active": false,
+      "binding_affinity": -6.223950850903719,
+      "binding_score": 0.6293415248493801,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    },
+    {
+      "smiles": "CCC(C)O",
+      "is_active": false,
+      "binding_affinity": -4.607678719414393,
+      "binding_score": 0.8987202134309346,
+      "success": true,
+      "error": null,
+      "runtime_ms": 0.0
+    }
+  ]
+}

@@ -432,10 +432,20 @@ class CompToxAdapter(AdapterProtocol):
         rate_delay = self.config.get("rate_limit_delay", 0.1)
         await asyncio.sleep(rate_delay)
 
-        # Parse input
+        # Parse input and auto-detect query type
         if isinstance(input_data, str):
             query = input_data
-            query_type = "name"  # Default to name search
+            # Auto-detect query type
+            if query.startswith("DTXSID"):
+                query_type = "dtxsid"
+            elif "InChI=" in query:
+                query_type = "inchikey"
+            elif any(c in query for c in ["=", "#", "@", "(", ")"]):  # Likely SMILES
+                query_type = "smiles"
+            elif query.replace("-", "").isdigit() or (query.count("-") == 2 and all(p.isdigit() for p in query.split("-"))):
+                query_type = "cas"  # CAS number format
+            else:
+                query_type = "name"  # Default to name search
         else:
             query = input_data["query"]
             query_type = input_data.get("query_type", "name")

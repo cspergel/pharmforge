@@ -280,7 +280,7 @@ def _get_adapter_metadata(adapter) -> AdapterMetadata:
         display_name=_generate_display_name(adapter_name),
         adapter_type=adapter_type,
         category=category,
-        status="active" if adapter.enabled else "inactive",
+        status="healthy" if adapter.enabled else "offline",
         description=_generate_description(adapter_name, category),
         version=getattr(adapter, 'version', '1.0.0'),
         enabled=adapter.enabled,

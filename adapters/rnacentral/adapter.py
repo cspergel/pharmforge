@@ -217,11 +217,11 @@ class RNAcentralAdapter(AdapterProtocol):
             "description": rna_data.get("description"),
             "species": [
                 {
-                    "taxid": sp.get("taxid"),
-                    "name": sp.get("name"),
-                    "common_name": sp.get("common_name")
+                    "taxid": sp.get("taxid") if isinstance(sp, dict) else None,
+                    "name": sp.get("name") if isinstance(sp, dict) else str(sp),
+                    "common_name": sp.get("common_name") if isinstance(sp, dict) else None
                 }
-                for sp in rna_data.get("xrefs", [])[:5]  # Top 5 species
+                for sp in (rna_data.get("xrefs", []) if isinstance(rna_data.get("xrefs"), list) else [])[:5]  # Top 5 species
             ] if "xrefs" in rna_data else [],
             "url": rna_data.get("url", f"https://rnacentral.org/rna/{rna_data.get('rnacentral_id')}")
         }

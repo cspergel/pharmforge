@@ -326,10 +326,6 @@ def render_compound_testing_page():
         st.session_state.protein_data = None
     if 'protein_input_mode' not in st.session_state:
         st.session_state.protein_input_mode = "PDB ID"
-    if 'running' not in st.session_state:
-        st.session_state.running = False
-    if 'cancel_requested' not in st.session_state:
-        st.session_state.cancel_requested = False
 
     # Get API client
     api_client = get_api_client()
@@ -565,43 +561,20 @@ def render_compound_testing_page():
             elif needs_protein and not has_protein:
                 st.warning("⚠️ Selected adapters require protein target data")
 
-        # Create columns for run and cancel buttons
-        btn_col1, btn_col2 = st.columns([3, 1])
-
-        with btn_col1:
-            run_clicked = st.button(
-                f"🚀 Run {len(st.session_state.selected_adapters)} Adapters",
-                type="primary",
-                use_container_width=True,
-                disabled=not can_run or st.session_state.running
-            )
-
-        with btn_col2:
-            if st.session_state.running:
-                if st.button("🛑 Cancel", type="secondary", use_container_width=True):
-                    st.session_state.cancel_requested = True
-
-        if run_clicked:
-            st.session_state.running = True
-            st.session_state.cancel_requested = False
-            st.rerun()
-
-        # Execute adapters if running
-        if st.session_state.running:
-            # Create status container
-            status_container = st.empty()
-            progress_container = st.empty()
-            results_preview = st.empty()
-
-            with status_container.container():
-                st.info("⏳ Running adapters... Results will appear below as they complete.")
+        if st.button(
+            f"🚀 Run {len(st.session_state.selected_adapters)} Adapters",
+            type="primary",
+            use_container_width=True,
+            disabled=not can_run
+        ):
+            # Create progress display
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
             results = []
             total_adapters = len(st.session_state.selected_adapters)
-            completed = 0
 
-            # Show progress bar
-            progress_container.progress(0, text=f"Starting... (0/{total_adapters})")
+            status_text.text(f"Running {total_adapters} adapters...")
 
             # Use ThreadPoolExecutor for parallel execution
             with ThreadPoolExecutor(max_workers=5) as executor:
@@ -617,16 +590,8 @@ def render_compound_testing_page():
                     futures[future] = adapter_name
 
                 # Collect results as they complete
+                completed = 0
                 for future in as_completed(futures):
-                    # Check for cancellation
-                    if st.session_state.cancel_requested:
-                        # Cancel remaining futures
-                        for f in futures.keys():
-                            if not f.done():
-                                f.cancel()
-                        status_container.warning("❌ Execution cancelled by user")
-                        break
-
                     adapter_name = futures[future]
                     try:
                         response = future.result()
@@ -658,39 +623,19 @@ def render_compound_testing_page():
                         })
 
                     completed += 1
-                    progress_pct = completed / total_adapters
-                    progress_container.progress(
-                        progress_pct,
-                        text=f"Completed {completed}/{total_adapters} adapters"
-                    )
+                    progress_bar.progress(completed / total_adapters)
+                    status_text.text(f"Completed {completed}/{total_adapters} adapters...")
 
-                    # Show live results preview
-                    successful = sum(1 for r in results if r['status'] == 'success')
-                    failed = sum(1 for r in results if r['status'] == 'error')
+            # Clear progress indicators
+            progress_bar.empty()
+            status_text.empty()
 
-                    with results_preview.container():
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Completed", f"{completed}/{total_adapters}")
-                        with col2:
-                            st.metric("✅ Successful", successful)
-                        with col3:
-                            st.metric("❌ Failed", failed)
-
-            # Save results and mark as complete
+            # Save results
             st.session_state.results = results
-            st.session_state.running = False
-            st.session_state.cancel_requested = False
             save_to_history(results, st.session_state.smiles, st.session_state.protein_data)
 
-            # Clear status containers
-            status_container.success(f"✅ Completed! {len(results)} adapters executed.")
-            progress_container.empty()
-            results_preview.empty()
-
-            # Force rerun to show final results
-            time.sleep(0.5)  # Brief pause to show completion message
-            st.rerun()
+            st.success(f"✅ Completed! {len(results)} adapters executed.")
+            # Results will display below automatically
 
     # ========================================================================
     # RESULTS DISPLAY
